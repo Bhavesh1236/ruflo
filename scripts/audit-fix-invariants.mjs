@@ -142,6 +142,83 @@ const INVARIANTS = [
     regex: /forkArgs\.push\(['"]--headless['"]\)/,
     why: 'Daemon launcher forwards --headless — same family as the --workers gap.',
   },
+
+  // #1989 — statusline guards SQLite header read against RFE1-encrypted
+  // memory.db (the bug rendered 3.3B `patterns` and cascaded into fake
+  // DDD 5/5 / 100% / 🧠 100%).
+  {
+    issue: '#1989',
+    file: 'v3/@claude-flow/cli/src/init/statusline-generator.ts',
+    substring: "Buffer.from('SQLite format 3",
+    why: 'Magic-bytes check before reading SQLite page count. Without it, encrypted RFE1 memory.db files produce bogus uint32 pattern counts.',
+  },
+  {
+    issue: '#1989',
+    file: 'v3/@claude-flow/cli/src/init/statusline-generator.ts',
+    regex: /pageCount > 1_000_000/,
+    why: 'Sanity clamp rejecting >1M-page DBs (~4GB). Defense-in-depth even on plaintext SQLite.',
+  },
+
+  // #1987 — memory stats uses persistent HNSW count from MCP tool, not
+  // the in-process JS state (which is always 0 from a fresh CLI invocation).
+  {
+    issue: '#1987',
+    file: 'v3/@claude-flow/cli/src/commands/memory.ts',
+    substring: 'statsResult.entriesWithEmbeddings',
+    why: 'memory stats reads persistent entriesWithEmbeddings, not in-process hnsw.entryCount. Without this, `memory stats` shows HNSW (0 entries) even when the DB has thousands of vectors.',
+  },
+
+  // #1948 — Windows-specific statusLine command (no `sh` required)
+  {
+    issue: '#1948',
+    file: 'v3/@claude-flow/cli/src/init/settings-generator.ts',
+    regex: /process\.platform === ['"]win32['"]/,
+    why: 'Platform-aware statusLine emission. On native Windows we emit `node -e "…"` instead of `sh -c …` so missing/mangled-quoting `sh` no longer produces stray repo-root files.',
+  },
+
+  // #1937 — exclusion patterns for memory_import_claude (voice-fidelity)
+  {
+    issue: '#1937',
+    file: 'v3/@claude-flow/cli/src/mcp-tools/memory-tools.ts',
+    substring: 'excludeFilePatterns',
+    why: 'memory_import_claude accepts excludeFilePatterns (glob) for voice-fidelity / persona-restricted operators. Per-file granularity beyond the coarse allProjects:true/false.',
+  },
+
+  // #1921 — pin @opentelemetry/core to dodge arborist Invalid Version
+  {
+    issue: '#1921',
+    file: 'package.json',
+    substring: '"@opentelemetry/core": "1.25.1"',
+    why: 'overrides pin for @opentelemetry/core@1.25.1. Eliminates the npm 10.8.x arborist `Invalid Version: ` placeholder that fails every `npx claude-flow@alpha …` install (including all 5 hook fires).',
+  },
+
+  // #1910 — MCP stdio mode protects stdout from stray console.log
+  {
+    issue: '#1910',
+    file: 'v3/@claude-flow/cli/src/mcp-server.ts',
+    substring: 'process.env.MCP_STDIO_MODE',
+    why: 'stdio MCP server hijacks console.log/info/debug → stderr so lazy-loaded module diagnostics never corrupt the JSON-RPC stream. Without this, hooks_route lazy-loads transformers.js/ONNX whose init prints to stdout and closes the Codex transport mid-batch.',
+  },
+  {
+    issue: '#1910',
+    file: 'v3/@claude-flow/cli/src/mcp-server.ts',
+    substring: 'uncaughtException',
+    why: 'stdio MCP server installs uncaughtException + unhandledRejection handlers so a lazy-loaded native init failure goes to stderr instead of crashing the transport silently.',
+  },
+
+  // #1872 — SwarmCoordinator scaleAgents targets total, executeTask catches throws
+  {
+    issue: '#1872',
+    file: 'v3/src/coordination/application/SwarmCoordinator.ts',
+    substring: 'TARGET TOTAL',
+    why: 'scaleAgents({type, count}) treats count as the target total, not a delta. Without this, repeated scaleAgents calls accumulate (1 → 4 → 6 instead of 1 → 4 → 2).',
+  },
+  {
+    issue: '#1872',
+    file: 'v3/src/coordination/application/SwarmCoordinator.ts',
+    regex: /try\s*\{[\s\S]{0,200}agent\.executeTask\(task\)/,
+    why: 'executeTask wraps agent.executeTask in try/catch so a thrown error becomes a structured TaskResult{status:"failed", error} instead of crashing the swarm.',
+  },
 ];
 
 const offenders = [];
