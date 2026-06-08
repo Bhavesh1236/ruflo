@@ -138,7 +138,7 @@ importers:
         specifier: ^3.0.0-alpha.1
         version: link:../guidance
       '@claude-flow/memory':
-        specifier: ^3.0.0-alpha.17
+        specifier: ^3.0.0-alpha.20
         version: link:../memory
       '@claude-flow/plugin-gastown-bridge':
         specifier: ^0.1.3
